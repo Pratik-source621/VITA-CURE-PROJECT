@@ -34,7 +34,6 @@ logging.basicConfig(level=logging.INFO)
 def validate_disease_name(name: str) -> str:
     """Sanitize and validate disease input"""
     clean_name = re.sub(r'[_-]', ' ', name).strip().lower()
-    
     if not re.match(r'^[\w\s-]+$', clean_name):
         raise HTTPException(400, detail="Invalid characters in disease name")
     if len(clean_name) > 50:
@@ -81,23 +80,26 @@ async def generate_summary(disease: str):
         # Get remedies first
         remedies_data = await get_remedies(disease)
         
-        # Build prompt with proper formatting
+        # Build remedy lines with proper formatting
         remedy_lines = []
         for r in remedies_data['remedies']:
             line = f"- **{r['herb_name']}**: {r['preparation']} ({r['dosage']})"
             if r['safety_notes']:
                 line += f"\n  - Safety Notes: {r['safety_notes']}"
             remedy_lines.append(line)
+        
+        # Join remedy_lines outside the f-string to avoid f-string escape issues
+        joined_remedies = "\n".join(remedy_lines)
 
         prompt = f"""Generate a comprehensive herbal remedy summary for {remedies_data['disease']} using this data:
         
 **Description**: {remedies_data['description']}
 
 **Recommended Herbal Remedies**:
-{"\n".join(remedy_lines)}
+{joined_remedies}
 
 Include key safety considerations and format the response using markdown with clear sections."""
-
+        
         # Get Cohere response
         response = cohere_client.generate(
             model="command",
@@ -127,3 +129,4 @@ Include key safety considerations and format the response using markdown with cl
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
