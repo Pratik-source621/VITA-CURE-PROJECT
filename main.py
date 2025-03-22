@@ -6,6 +6,7 @@ import cohere
 import os
 import re
 from dotenv import load_dotenv
+import logging
 
 # Load environment variables
 load_dotenv()
@@ -22,17 +23,18 @@ cohere_client = cohere.Client(COHERE_API_KEY)
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Change this in production
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
 def validate_disease_name(name: str) -> str:
     """Sanitize and validate disease input"""
-    # Replace underscores and hyphens with spaces
     clean_name = re.sub(r'[_-]', ' ', name).strip().lower()
     
-    # Allow letters, numbers, and spaces only
     if not re.match(r'^[\w\s-]+$', clean_name):
         raise HTTPException(400, detail="Invalid characters in disease name")
     if len(clean_name) > 50:
@@ -41,10 +43,7 @@ def validate_disease_name(name: str) -> str:
 
 @app.get("/remedies/{disease}")
 async def get_remedies(disease: str):
-    """
-    Get herbal remedies for a disease
-    Example: /remedies/Common_Cold
-    """
+    """Get herbal remedies for a disease"""
     try:
         clean_disease = validate_disease_name(disease)
         
@@ -72,14 +71,12 @@ async def get_remedies(disease: str):
     except HTTPException as he:
         raise he
     except Exception as e:
+        logging.error(f"Error in get_remedies: {str(e)}")
         raise HTTPException(500, detail=f"Database error: {str(e)}")
 
 @app.get("/cohere-summary/{disease}")
 async def generate_summary(disease: str):
-    """
-    Generate AI summary using Cohere
-    Example: /cohere-summary/Migraine
-    """
+    """Generate AI summary using Cohere"""
     try:
         # Get remedies first
         remedies_data = await get_remedies(disease)
@@ -119,10 +116,12 @@ Include key safety considerations and format the response using markdown with cl
         }
 
     except cohere.CohereError as ce:
+        logging.error(f"Cohere API error: {str(ce)}")
         raise HTTPException(503, detail=f"Cohere API error: {str(ce)}")
     except HTTPException as he:
         raise he
     except Exception as e:
+        logging.error(f"Error in generate_summary: {str(e)}")
         raise HTTPException(500, detail=f"Summary error: {str(e)}")
 
 if __name__ == "__main__":
